@@ -102,6 +102,12 @@ def test_noexec_option_set_on_removable_media_partition(host):
 	assert not 'usb' in cdrom
 	assert not 'floppy' in cdrom
 
+def test_ensure_sticky_bit_is_set_on_world_writable_directory(host):
+	cdrom = host.check_output ('mount | grep noexec')
+	assert not 'cdrom' in cdrom
+	assert not 'usb' in cdrom
+	assert not 'floppy' in cdrom
+
 def test_disable_Automounting(host):
 	autofs = host.service ('autofs')
 	assert not autofs.is_enabled
@@ -189,21 +195,140 @@ def test_nis_server_is_not_enable(host):
 	assert not nis.is_enabled
 
 def test_nis_client_is_not_installed(host):
-	nis = host.check_output ('rpm -q ypbind')
-	assert nis == 'package ypbind is not installed'
+	nis = host.package ('ypbind')
+	assert not nis.is_installed 
 
 def test_telnet_client_is_not_installed(host):
-	telnet = host.check_output ('rpm -q telnet')
-	assert telnet == 'package telnet is not installed'
+	telnet = host.package ('telnet')
+	assert not telnet.is_installed 
 
 def test_ldap_client_is_not_installed(host):
-	ldap = host.check_output ('rpm -q openldap-clients')
-	assert ldap == 'package openldap-clients is not installed'
+	ldap = host.package ('openldap-clients')
+	assert not ldap.is_installed 
 
+def test_auditd_is_installed(host):
+	auditd = host.package ('auditd')
+	auditdlibs = host.package ('auditd-libs')
+	assert auditd.is_installed 
+	assert auditdlibs.is_installed 
 
+def test_auditd_is_enable(host):
+	auditd = host.service ('auditd')
+	assert auditd.is_enabled
 
+def test_auditing_for_processes_that_start_prior_to_auditd_is_enabled(host):
+	kaudit = host.check_output ('grep -ow audit=1 /boot/grub2/grubenv')
+	assert kaudit == ''
 
+def test_audit_log_storage_size_is_configured(host):
+	storage = host.check_output ('grep max_log_file /etc/audit/auditd.conf')
+	assert not storage == ''
 
+def test_audit_are_not_automatically_deleted(host):
+	delete = host.check_output ('grep max_log_file_action /etc/audit/auditd.conf')
+	assert delete == 'keep_logs'
 
+def test_audit_system_is_disabled_when_audit_logs_are_full(host):
+	action = host.check_output ('grep space_left_action /etc/audit/auditd.conf')
+	mail = host.check_output ('grep action_mail_acct /etc/audit/auditd.conf')
+	admin = host.check_output ('grep admin_space_left_action /etc/audit/auditd.conf')
+	assert action == 'email'
+	assert mail == 'root'
+	assert admin == 'halt'
 
+def test_changes_to_system_administration_scope_is_collected(host):
+	rule = host.check_output ('grep scope /etc/audit/rules.d/*.rules')
+	audit = host.check_output ('auditctl -l | grep scope')
+	assert audit in rule
 
+def test_session_initiation_information_is_collected(host):
+	rule = host.check_output ('grep -E "(session|logins)" /etc/audit/rules.d/*.rules')
+	audit = host.check_output ('auditctl -l | grep -E "(session|logins)"')
+	assert audit in rule
+
+def test_events_that_modify_date_and_time_infrmation_are_collected(host):
+	rule = host.check_output ('grep time-change /etc/audit/rules.d/*.rules')
+	audit = host.check_output ('auditctl -l | grep time-change')
+	assert audit in rule
+
+def test_events_that_modify_the_system_Mandatory_Access_controls_are_collected(host):
+	rule = host.check_output ('grep MAC-policy /etc/audit/rules.d/*.rules')
+	audit = host.check_output ('auditctl -l | grep MAC-policy')
+	assert audit in rule
+
+def test_events_that_modify_the_system_network_environment_are_collected(host):
+	rule = host.check_output ('grep system-locale /etc/audit/rules.d/*.rules')
+	audit = host.check_output ('auditctl -l | grep system-locale')
+	assert audit in rule
+
+def test_discretionary_access_control_permission_modification_events_are_collected(host):
+	rule = host.check_output ('grep perm_mod /etc/audit/rules.d/*.rules')
+	audit = host.check_output ('auditctl -l | grep perm_mod')
+	assert audit in rule
+
+def test_unsuccessful_unauthorized_file_access_attempts_are_collected(host):
+	rule = host.check_output ('grep access /etc/audit/rules.d/*.rules')
+	audit = host.check_output ('auditctl -l | grep -E access')
+	assert audit in rule
+
+def test_events_that_modify_usergroup_information_are_collected(host):
+	rule = host.check_output ('grep identity /etc/audit/rules.d/*.rules')
+	audit = host.check_output ('auditctl -l | grep identity')
+	assert audit in rule
+
+def test_successful_file_system_mounts_are_collected(host):
+	rule = host.check_output ('grep mounts /etc/audit/rules.d/*.rules')
+	audit = host.check_output ('auditctl -l | grep mounts')
+	assert audit in rule
+
+def test_file_deletion_events_by_users_are_collected(host):
+	rule = host.check_output ('grep delete /etc/audit/rules.d/*.rules')
+	audit = host.check_output ('auditctl -l | grep delete')
+	assert audit in rule
+
+def test_kernel_module_loading_and_unloading_is_collected(host):
+	rule = host.check_output ('grep modules /etc/audit/rules.d/*.rules')
+	audit = host.check_output ('auditctl -l | grep -E modules')
+	assert audit in rule
+
+def test_rsyslog_is_installed(host):
+	rsyslog = host.package ('rsyslog')
+	assert rsyslog.is_installed 
+
+def test_nis_syslog_is_enable(host):
+	rsyslog = host.service ('rsyslog')
+	assert rsyslog.is_enabled
+
+def test_kernel_module_loading_and_unloading_is_collected(host):
+	file = host.check_output ("grep FileCreateMode /etc/rsyslog.conf /etc/rsyslog.d/*.conf | awk '{print $2}' ")
+	assert file <= '0640'
+
+def test_rsyslog_is_configured_to_send_logs_to_a_remote_log_host(host):
+	send = host.check_output ('grep "^*.*[^I][^I]*@" /etc/rsyslog.conf /etc/rsyslog.d/*.conf')
+	assert send == ''
+
+def test_remote_rsyslog_messages_are_only_accepted_on_designated_log_hosts(host):
+	imtcp = host.check_output ("grep '$ModLoad imtcp' /etc/rsyslog.conf /etc/rsyslog.d/*.conf")
+	run = host.check_output ("grep '$InputTCPServerRun' /etc/rsyslog.conf /etc/rsyslog.d/*.conf")
+	assert imtcp == '$ModLoad imtcp'
+	assert run == '$InputTCPServerRun 514'
+
+def test_journald_is_configured_to_send_logs_to_a_remote_log_host(host):
+	forward = host.check_output ('grep ForwardToSyslog /etc/systemd/journald.conf')
+	assert forward == 'ForwardToSyslog=yes'
+
+def test_journald_is_configured_to_compress_large_log_files(host):
+	compress = host.check_output ('grep Compress /etc/systemd/journald.conf')
+	assert compress == 'Compress=yes'
+
+def test_journald_is_configured_to_write_logfiles_to_persistent_disk(host):
+	storage = host.check_output ('grep Storage /etc/systemd/journald.conf')
+	assert compress == 'Storage=persistent'
+
+def test_permissions_on_all_logfiles_are_configured(host):
+	log = host.check_output ('find /var/log -type f -perm /037 -ls -o -type d -perm /026 -ls')
+	assert log == ''
+
+def test_logrotate_is_configured(host):
+	logrotate = host.check_output ('grep ^rotate /etc/logrotate.conf /etc/logrotate.d/*')
+	assert not logrotate == ''
