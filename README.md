@@ -1,22 +1,34 @@
-# About Testinfra CIS Benchmark Auditing
-CIS Benchmarks, published by the Center for Internet Security (CIS), are documented industry best practices for securely configuring IT systems, software, and networks. 
-With Testinfra you can write unit tests in Python to test actual state of your servers configured by management tools like Salt, Ansible, Puppet, Cheft and so on.
+# Testinfra CIS Benchmark Auditing (CentOS/RHEL 8)
+CIS Benchmarks are industry best practices published by the Center for Internet Security (CIS) for securely configuring systems, software, and networks. This repository provides Testinfra-based audit checks targeting CentOS 8 and compatible RHEL 8 derivatives (e.g., AlmaLinux 8, Rocky Linux 8).
 
-## Quick Installation 
+## Requirements
+- Python 3.8+
+- `pytest` and `testinfra`
+- SSH access for remote auditing
+
+Install dependencies:
 ```
-$ pip install testinfra
+pip install pytest testinfra
 ```
 
-## Auditing CIS Benchmark with Testinfra
-you can use testinfra to test local or remote servers.
-For local server auditing 
+## Usage
+- Local auditing:
 ```
-python -m pytest -v testinfra-cis-centos8.py
+pytest -v testinfra-cis-centos8.py
 ```
-For remote server auditing
+- Remote auditing (SSH):
 ```
-python -m pytest -v --ssh-config=/Users/username/.ssh/config --hosts='ssh://hosts' testinfra-cis-centos8.py
+pytest -v --hosts=ssh://user@hostname --ssh-config=~/.ssh/config testinfra-cis-centos8.py
 ```
-## Audit Result
-If you see PASSED that check is compliance.
-If you see FAILED that check is non-compliance. For the non-compliance, you can see more detail on below 
+- Run with elevated privileges when needed:
+```
+pytest -v --sudo testinfra-cis-centos8.py
+```
+
+## Outputs
+- `PASSED`: the check is compliant
+- `FAILED`: the check is non-compliant
+
+## Notes
+- CentOS 8 reached end-of-life. These tests are maintained to align with RHEL 8-compatible distributions.
+- Some services and modules may be present due to specific workloads. Disable or adjust tests as appropriate for your environment.
